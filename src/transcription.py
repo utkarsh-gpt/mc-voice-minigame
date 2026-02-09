@@ -141,7 +141,7 @@ class TranscriptionService:
             asyncio.create_task(self._transcribe_chunk(chunk_16k, user_id))
     
     def _bytes_to_numpy(self, audio_bytes: bytes, sample_rate: int = 16000) -> np.ndarray:
-        """Convert PCM16 bytes to numpy array."""
+        """Convert PCM16 bytes to numpy array, with optional gain for quiet Discord audio."""
         if len(audio_bytes) == 0:
             return np.array([], dtype=np.float32)
         
@@ -154,6 +154,12 @@ class TranscriptionService:
         
         # Convert to float32 and normalize to [-1.0, 1.0]
         audio_float = audio_array.astype(np.float32) / 32768.0
+        
+        # Apply gain - Discord voice can be very quiet; amplify to improve VAD/transcription
+        gain = getattr(Config, 'WHISPER_AUDIO_GAIN', 3.0)
+        if gain != 1.0:
+            audio_float = audio_float * gain
+            audio_float = np.clip(audio_float, -1.0, 1.0)
         
         return audio_float
     
@@ -219,7 +225,10 @@ class TranscriptionService:
             return [], None
         
         # Use Faster-Whisper's transcribe method (audio must be 16kHz mono float32)
-        # language="en" speeds it up; VAD tuned to avoid filtering out speech
+        # language="en" speeds it up; VAD and thresholds tuned for quiet Discord voice
+        vad_threshold = getattr(Config, 'WHISPER_VAD_THRESHOLD', 0.2)  # Lower = more sensitive
+        log_prob_threshold = getattr(Config, 'WHISPER_LOG_PROB_THRESHOLD', -2.0)  # More lenient
+        no_speech_threshold = getattr(Config, 'WHISPER_NO_SPEECH_THRESHOLD', 0.9)  # Accept more
         segments, info = self.model.transcribe(
             audio_numpy,
             language="en",
@@ -227,9 +236,12 @@ class TranscriptionService:
             vad_filter=True,
             vad_parameters=dict(
                 min_silence_duration_ms=200,
-                threshold=0.35,  # Lower = more sensitive to quiet speech
+                threshold=vad_threshold,
                 min_speech_duration_ms=100,
-            )
+                speech_pad_ms=300,  # Padding around speech segments
+            ),
+            log_prob_threshold=log_prob_threshold,
+            no_speech_threshold=no_speech_threshold,
         )
         
         # Convert generator to list

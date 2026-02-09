@@ -19,6 +19,11 @@ class Config:
     WHISPER_MODEL_SIZE: str = os.getenv('WHISPER_MODEL_SIZE', 'base')  # tiny, base, small, medium, large-v2, large-v3
     WHISPER_DEVICE: str = os.getenv('WHISPER_DEVICE', 'cpu')  # cpu or cuda
     WHISPER_COMPUTE_TYPE: str = os.getenv('WHISPER_COMPUTE_TYPE', 'int8')  # int8, int8_float16, float16, float32
+    # Tuning for quiet Discord voice - adjust if speech is filtered out
+    WHISPER_AUDIO_GAIN: float = float(os.getenv('WHISPER_AUDIO_GAIN', '3.0'))  # Amplify audio (1.0=no gain)
+    WHISPER_VAD_THRESHOLD: float = float(os.getenv('WHISPER_VAD_THRESHOLD', '0.2'))  # Lower=more sensitive
+    WHISPER_LOG_PROB_THRESHOLD: float = float(os.getenv('WHISPER_LOG_PROB_THRESHOLD', '-2.0'))  # More lenient
+    WHISPER_NO_SPEECH_THRESHOLD: float = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.9'))  # Accept more
     
     # Minecraft RCON Configuration
     MINECRAFT_RCON_HOST: str = os.getenv('MINECRAFT_RCON_HOST', 'localhost')
