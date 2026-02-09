@@ -16,24 +16,26 @@ from .transcription import get_transcription_service
 from .block_detector import get_block_detector
 from .minecraft_rcon import get_rcon_client
 
-# Set up logging
+# Set up logging (DEBUG level, all output to bot.log for debugging)
+log_file = Config.BASE_DIR / 'bot.log'
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bot.log'),
+        logging.FileHandler(log_file, encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Suppress noisy voice/RTCP packet logs (keep only warnings and errors)
-logging.getLogger('discord.ext.voice_recv').setLevel(logging.WARNING)
-logging.getLogger('discord.ext.voice_recv.reader').setLevel(logging.WARNING)
-logging.getLogger('discord.ext.voice_recv.opus').setLevel(logging.WARNING)
-logging.getLogger('discord.ext.voice_recv.router').setLevel(logging.WARNING)
-# Suppress faster_whisper per-chunk processing messages
-logging.getLogger('faster_whisper').setLevel(logging.WARNING)
+# Log everything (including voice/whisper libs) for debugging
+logging.getLogger('discord').setLevel(logging.DEBUG)
+logging.getLogger('discord.ext.voice_recv').setLevel(logging.DEBUG)
+logging.getLogger('discord.ext.voice_recv.reader').setLevel(logging.DEBUG)
+logging.getLogger('discord.ext.voice_recv.opus').setLevel(logging.DEBUG)
+logging.getLogger('discord.ext.voice_recv.router').setLevel(logging.DEBUG)
+logging.getLogger('faster_whisper').setLevel(logging.DEBUG)
+logging.getLogger('httpx').setLevel(logging.DEBUG)
 
 
 class MinecraftBot(commands.Bot):
