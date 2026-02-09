@@ -125,17 +125,17 @@ class MinecraftBot(commands.Bot):
             if block_info:
                 logger.info(f"Block detected: {block_info['block_id']} by user {user_id}")
                 
-                # Validate block_id format
+                # Resolve block_id (may be list for e.g. "ore")
                 block_id = block_info['block_id']
+                if isinstance(block_id, list):
+                    block_id = block_id[0] if block_id else None
                 if not isinstance(block_id, str) or not block_id.startswith('minecraft:'):
                     logger.error(f"Invalid block_id format: {block_id}")
                     return
                 
-                # Validate radius
-                radius = block_info['radius']
-                if not isinstance(radius, int) or radius < 1 or radius > Config.MAX_RADIUS:
-                    logger.error(f"Invalid radius: {radius}")
-                    radius = Config.DEFAULT_RADIUS
+                # Check for "clear chunk" -> replace that block with air in 16x16 chunk
+                normalized = self.block_detector.normalize_text(text)
+                clear_chunk = "clear chunk" in normalized
                 
                 # Ensure RCON is connected
                 if not self.rcon_client.connected:
@@ -147,12 +147,23 @@ class MinecraftBot(commands.Bot):
                         )
                         return
                 
-                # Replace blocks around all players
                 try:
-                    results = self.rcon_client.replace_blocks_around_all_players(
-                        block_id=block_id,
-                        radius=radius
-                    )
+                    if clear_chunk:
+                        # Replace target block with air in 16x16 chunk around each player
+                        results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
+                            target_block=block_id,
+                            replacement_block="minecraft:air",
+                        )
+                    else:
+                        # Validate radius and replace blocks around all players (place block)
+                        radius = block_info['radius']
+                        if not isinstance(radius, int) or radius < 1 or radius > Config.MAX_RADIUS:
+                            logger.error(f"Invalid radius: {radius}")
+                            radius = Config.DEFAULT_RADIUS
+                        results = self.rcon_client.replace_blocks_around_all_players(
+                            block_id=block_id,
+                            radius=radius
+                        )
                     
                     successful_players = [p for p, success in results.items() if success]
                     failed_players = [p for p, success in results.items() if not success]

@@ -2,7 +2,7 @@
   "stone": "minecraft:stone",
   "cobblestone": "minecraft:cobblestone",
   "dirt": "minecraft:dirt",
-  "grass": "minecraft:grass",
+  "grass": "minecraft:grass_block",
   "diamond block": "minecraft:diamond_block",
   "gold block": "minecraft:gold_block",
   "iron block": "minecraft:iron_block",
