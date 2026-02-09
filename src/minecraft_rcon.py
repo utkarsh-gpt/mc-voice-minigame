@@ -243,12 +243,12 @@ class MinecraftRCON:
         response = self.execute_command("list")
         return response is not None
     
-    def say(self, message: str) -> bool:
-        """Send a message to all players."""
+    def say(self, message: str, bypass_cooldown: bool = True) -> bool:
+        """Broadcast a message to all players on the server (shows as [Server] message)."""
         # Escape quotes in message
-        message = message.replace('"', '\\"')
-        command = f'say "{message}"'
-        response = self.execute_command(command)
+        escaped = message.replace('\\', '\\\\').replace('"', '\\"')
+        command = f'say "{escaped}"'
+        response = self.execute_command(command, bypass_cooldown=bypass_cooldown)
         return response is not None
 
 

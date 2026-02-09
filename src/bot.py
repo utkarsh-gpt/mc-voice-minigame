@@ -160,6 +160,11 @@ class MinecraftBot(commands.Bot):
                     failed_players = [p for p, success in results.items() if not success]
                     if successful_players:
                         logger.info(f"Cleared {block_id} in chunk for: {', '.join(successful_players)}")
+                        # Broadcast to server: "User [name] cleared [block] in chunk"
+                        user = self.get_user(user_id)
+                        user_name = user.display_name if user else f"User {user_id}"
+                        block_name = block_info.get("matched_word", block_id.replace("minecraft:", "").replace("_", " "))
+                        self.rcon_client.say(f"User {user_name} cleared {block_name} in chunk")
                     if failed_players:
                         logger.warning(f"Failed for: {', '.join(failed_players)}")
                 except Exception as e:
