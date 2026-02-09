@@ -59,8 +59,8 @@ class MinecraftBot(commands.Bot):
         
         # Set up transcription callback
         self.transcription_service.set_transcript_callback(self._on_transcript)
-        # Bias transcription toward Minecraft block names and "clear chunk" command
-        block_words = list(self.block_detector.get_block_words().keys()) + ["clear", "chunk"]
+        # Bias transcription toward Minecraft block names
+        block_words = list(self.block_detector.get_block_words().keys())
         self.transcription_service.set_hotwords(block_words)
     
     async def setup_hook(self):
@@ -128,11 +128,7 @@ class MinecraftBot(commands.Bot):
             block_info = self.block_detector.detect_block(text, user_id)
             
             if block_info:
-                # Only act on "clear chunk" + block: replace that block with air in 16x16 chunk
-                normalized = self.block_detector.normalize_text(text)
-                if "clear chunk" not in normalized:
-                    return
-                
+                # Act on any block word from block_words.json - no extra phrase required
                 logger.info(f"Block detected: {block_info['block_id']} by user {user_id}")
                 
                 # Resolve block_id (may be list for e.g. "ore")
@@ -374,7 +370,7 @@ async def start_transcribe(interaction: discord.Interaction):
         bot.audio_processing_tasks[interaction.guild.id] = task
         
         await interaction.response.send_message(
-            'Started transcribing audio! Speak Minecraft block names to trigger replacements.',
+            'Started transcribing! Say any block name (e.g. **"stone"**, **"grass"**, **"cobblestone"**) to clear that block in the chunk.',
             ephemeral=True
         )
         logger.info(f'Started transcription in {interaction.guild.name}')
@@ -638,7 +634,7 @@ async def toggle_voice_triggers(interaction: discord.Interaction, enabled: bool)
                 return
             
             await interaction.response.send_message(
-                'Voice triggers enabled. Say e.g. "grass clear chunk" to clear that block in a chunk.',
+                'Voice triggers enabled. Say any block name (e.g. "stone", "grass") to clear that block.',
                 ephemeral=True
             )
         else:

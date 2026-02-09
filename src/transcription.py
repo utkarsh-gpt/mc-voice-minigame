@@ -289,7 +289,7 @@ class TranscriptionService:
         log_prob_threshold = getattr(Config, 'WHISPER_LOG_PROB_THRESHOLD', -1.5)
         no_speech_threshold = getattr(Config, 'WHISPER_NO_SPEECH_THRESHOLD', 0.7)
         beam_size = getattr(Config, 'WHISPER_BEAM_SIZE', 5)
-        hotwords = self.hotwords or None  # Biases model toward block names, "clear chunk"
+        hotwords = self.hotwords or None  # Biases model toward block names
         segments, info = self.model.transcribe(
             audio_numpy,
             language="en",
