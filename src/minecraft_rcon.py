@@ -195,7 +195,9 @@ class MinecraftRCON:
         # Bypass cooldown for internal operations (called from replace_blocks_around_all_players)
         response = self.execute_command(command, bypass_cooldown=True)
         
-        if response:
+        # Some servers/RCON libs may return an empty string on success.
+        # Treat only None (exception/connection failure) as a failed execution.
+        if response is not None:
             logger.info(f"Replaced blocks around {player} with {block_id} (radius: {radius})")
             return True
         else:
@@ -264,7 +266,9 @@ class MinecraftRCON:
                 f"{replacement_block} replace {target_block}"
             )
             response = self.execute_command(command, bypass_cooldown=True)
-            if not response:
+            # Some servers/RCON libs may return an empty string on success.
+            # Treat only None (exception/connection failure) as a failed execution.
+            if response is None:
                 logger.error(
                     f"Failed to replace {target_block} in chunk segment {i + 1}/{num_segments} "
                     f"around {player} (Y {y_start}-{y_end})"
