@@ -59,6 +59,9 @@ class MinecraftBot(commands.Bot):
         
         # Set up transcription callback
         self.transcription_service.set_transcript_callback(self._on_transcript)
+        # Bias transcription toward Minecraft block names and "clear chunk" command
+        block_words = list(self.block_detector.get_block_words().keys()) + ["clear", "chunk"]
+        self.transcription_service.set_hotwords(block_words)
     
     async def setup_hook(self):
         """Called when the bot is starting up."""

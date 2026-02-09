@@ -19,6 +19,8 @@ class Config:
     WHISPER_MODEL_SIZE: str = os.getenv('WHISPER_MODEL_SIZE', 'base')  # tiny, base, small, medium, large-v2, large-v3
     WHISPER_DEVICE: str = os.getenv('WHISPER_DEVICE', 'cpu')  # cpu or cuda
     WHISPER_COMPUTE_TYPE: str = os.getenv('WHISPER_COMPUTE_TYPE', 'int8')  # int8, int8_float16, float16, float32
+    WHISPER_BEAM_SIZE: int = int(os.getenv('WHISPER_BEAM_SIZE', '5') or '5')  # 5=accurate, 1=fast
+    WHISPER_CHUNK_SECONDS: int = int(os.getenv('WHISPER_CHUNK_SECONDS', '3') or '3')  # Audio context length
     # Tuning for quiet Discord voice - adjust if speech is filtered out
     WHISPER_AUDIO_GAIN: float = float(os.getenv('WHISPER_AUDIO_GAIN', '3.0'))  # Amplify audio (1.0=no gain)
     WHISPER_VAD_THRESHOLD: float = float(os.getenv('WHISPER_VAD_THRESHOLD', '0.2'))  # Lower=more sensitive

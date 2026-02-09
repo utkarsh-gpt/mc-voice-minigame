@@ -43,6 +43,7 @@ class TranscriptionService:
         self.transcript_callback: Optional[Callable] = None
         self.audio_buffer: bytes = b''
         self.user_id_map: Dict[int, int] = {}  # SSRC -> User ID
+        self.hotwords: str = ""  # Bias model toward these terms (e.g. Minecraft block names)
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="whisper")
         self._model_lock = asyncio.Lock()
     
@@ -64,6 +65,10 @@ class TranscriptionService:
     def set_transcript_callback(self, callback: Callable):
         """Set callback function for when transcripts are received."""
         self.transcript_callback = callback
+    
+    def set_hotwords(self, words: list) -> None:
+        """Set hotwords to bias transcription (e.g. block names for Minecraft)."""
+        self.hotwords = " ".join(str(w).lower() for w in words) if words else ""
     
     async def start_session(self, sample_rate: int = 16000):
         """Start a new transcription session."""
@@ -125,8 +130,9 @@ class TranscriptionService:
         # Buffer audio data (Discord sends 48kHz PCM)
         self.audio_buffer += audio_data
         
-        # Process in chunks: 2 seconds at 48kHz = 48000*2*2 = 192000 bytes
-        chunk_48k_bytes = DISCORD_PCM_RATE * 2 * 2  # 2 sec PCM16
+        # Process in chunks (longer = more context for accuracy, but more latency)
+        chunk_secs = getattr(Config, 'WHISPER_CHUNK_SECONDS', 3)
+        chunk_48k_bytes = DISCORD_PCM_RATE * chunk_secs * 2  # PCM16
         
         if len(self.audio_buffer) >= chunk_48k_bytes:
             chunk_48k = self.audio_buffer[:chunk_48k_bytes]
@@ -225,23 +231,28 @@ class TranscriptionService:
             return [], None
         
         # Use Faster-Whisper's transcribe method (audio must be 16kHz mono float32)
-        # language="en" speeds it up; VAD and thresholds tuned for quiet Discord voice
-        vad_threshold = getattr(Config, 'WHISPER_VAD_THRESHOLD', 0.2)  # Lower = more sensitive
-        log_prob_threshold = getattr(Config, 'WHISPER_LOG_PROB_THRESHOLD', -2.0)  # More lenient
-        no_speech_threshold = getattr(Config, 'WHISPER_NO_SPEECH_THRESHOLD', 0.9)  # Accept more
+        # beam_size=5 improves accuracy; hotwords bias toward Minecraft block names
+        vad_threshold = getattr(Config, 'WHISPER_VAD_THRESHOLD', 0.2)
+        log_prob_threshold = getattr(Config, 'WHISPER_LOG_PROB_THRESHOLD', -1.5)
+        no_speech_threshold = getattr(Config, 'WHISPER_NO_SPEECH_THRESHOLD', 0.7)
+        beam_size = getattr(Config, 'WHISPER_BEAM_SIZE', 5)
+        hotwords = self.hotwords or None
+        initial_prompt = f"Minecraft blocks: {self.hotwords}" if self.hotwords else None
         segments, info = self.model.transcribe(
             audio_numpy,
             language="en",
-            beam_size=1,  # Smaller beam = faster
+            beam_size=beam_size,  # 5 = more accurate, 1 = faster
             vad_filter=True,
             vad_parameters=dict(
                 min_silence_duration_ms=200,
                 threshold=vad_threshold,
                 min_speech_duration_ms=100,
-                speech_pad_ms=300,  # Padding around speech segments
+                speech_pad_ms=300,
             ),
             log_prob_threshold=log_prob_threshold,
             no_speech_threshold=no_speech_threshold,
+            hotwords=hotwords,
+            initial_prompt=initial_prompt,
         )
         
         # Convert generator to list
