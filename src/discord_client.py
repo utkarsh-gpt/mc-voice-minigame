@@ -8,6 +8,27 @@ from discord.ext import voice_recv
 
 logger = logging.getLogger(__name__)
 
+# Monkey-patch to handle occasional OpusError "corrupted stream" from Discord voice packets.
+# Without this, a single corrupted packet crashes the packet router and stops listening.
+_OPUS_SILENCE_FRAME = (
+    b'\x00' * (discord.opus.Decoder.SAMPLES_PER_FRAME * discord.opus.Decoder.CHANNELS * 2)
+)
+
+
+def _decode_packet_robust(self, packet):
+    """Wrapper that catches OpusError and returns silence instead of crashing."""
+    try:
+        return self._decode_packet_original(packet)
+    except discord.opus.OpusError as e:
+        logger.warning("Discord voice: corrupted Opus packet, substituting silence: %s", e)
+        return packet, _OPUS_SILENCE_FRAME
+
+
+# Apply patch to PacketDecoder
+_from_opus = voice_recv.opus
+_from_opus.PacketDecoder._decode_packet_original = _from_opus.PacketDecoder._decode_packet
+_from_opus.PacketDecoder._decode_packet = _decode_packet_robust
+
 
 class AudioQueueSink(voice_recv.AudioSink):
     """Custom sink that queues audio data for processing."""
