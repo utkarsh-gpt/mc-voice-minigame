@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Demo: delete a specific block type in a 16x16 chunk around each online player."""
+import json
 import sys
 from pathlib import Path
 
@@ -9,12 +10,30 @@ sys.path.insert(0, str(project_root))
 from src.minecraft_rcon import get_rcon_client
 from src.config import Config
 
+
+def resolve_block_id(name: str) -> str:
+    """Resolve a block name (e.g. 'grass') to a Minecraft block ID using block_words.json."""
+    key = name.strip().lower()
+    if key.startswith("minecraft:"):
+        return name.strip()
+    block_words_file = Config.BLOCK_WORDS_FILE
+    if block_words_file.exists():
+        with open(block_words_file, "r", encoding="utf-8") as f:
+            block_words = json.load(f)
+        if key in block_words:
+            raw = block_words[key]
+            if isinstance(raw, list):
+                return raw[0] if raw else name
+            return raw
+    return f"minecraft:{key}"
+
+
 def main():
     if len(sys.argv) > 1:
-        target_block = sys.argv[1]
+        target_block = resolve_block_id(sys.argv[1])
     else:
         target_block = "minecraft:stone"  # Default: delete stone blocks
-    
+
     print(f"Delete {target_block} in 16x16 chunk around players")
     print("=" * 50)
     rcon = get_rcon_client()
