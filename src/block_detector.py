@@ -78,6 +78,10 @@ class BlockDetector:
         """
         Detect a block name in the transcribed text.
         
+        Uses fuzzy (substring) matching: a keyword matches if it appears anywhere
+        in the normalized text, including inside other words. E.g. "end" matches
+        in "friend" and will trigger minecraft:end_stone.
+        
         Args:
             text: Transcribed text
             user_id: Discord user ID who spoke
@@ -87,13 +91,13 @@ class BlockDetector:
         """
         normalized = self.normalize_text(text)
         
-        # Try exact matches first (longer phrases first)
+        # Longer phrases first so e.g. "diamond block" wins over "diamond"
         sorted_words = sorted(self.block_words.items(), key=lambda x: len(x[0]), reverse=True)
         
         for word, block_id in sorted_words:
             normalized_word = self.normalize_text(word)
             
-            # Check for exact phrase match
+            # Fuzzy match: keyword can appear as substring (e.g. "end" in "friend")
             if normalized_word in normalized:
                 # Try to extract radius if specified
                 radius = self._extract_radius(normalized)

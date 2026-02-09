@@ -22,5 +22,7 @@
   "rack" : "minecraft:netherrack",
   "ore": ["minecraft:diamond_ore", "minecraft:iron_ore", "minecraft:gold_ore", "minecraft:coal_ore", "minecraft:lapis_ore", "minecraft:redstone_ore", "minecraft:emerald_ore"],
   "sand" : "minecraft:sand",
-  "gravel" : "minecraft:gravel"
+  "gravel" : "minecraft:gravel",
+  "logs": "#minecraft:logs",
+  "leaves": "#minecraft:leaves"
 }
