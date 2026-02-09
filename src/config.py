@@ -42,6 +42,10 @@ class Config:
     CONFIG_DIR: Path = BASE_DIR / 'config'
     BLOCK_WORDS_FILE: Path = CONFIG_DIR / 'block_words.json'
     
+    # Audio recording (save what the bot hears for debugging/review)
+    SAVE_AUDIO: bool = os.getenv('SAVE_AUDIO', 'false').lower() in ('true', '1', 'yes')
+    SAVE_AUDIO_DIR: Path = BASE_DIR / os.getenv('SAVE_AUDIO_DIR', 'recordings')
+    
     @classmethod
     def validate(cls) -> bool:
         """Validate that required configuration is present."""

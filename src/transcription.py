@@ -3,6 +3,7 @@ import asyncio
 import io
 import logging
 import wave
+from pathlib import Path
 from typing import Optional, Callable, Dict
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -44,6 +45,8 @@ class TranscriptionService:
         self.audio_buffer: bytes = b''
         self.user_id_map: Dict[int, int] = {}  # SSRC -> User ID
         self.hotwords: str = ""  # Bias model toward these terms (e.g. Minecraft block names)
+        self._recording_dir: Optional[Path] = None
+        self._chunk_counter: int = 0
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="whisper")
         self._model_lock = asyncio.Lock()
     
@@ -87,6 +90,17 @@ class TranscriptionService:
             
             self.is_transcribing = True
             self.audio_buffer = b''
+            self._chunk_counter = 0
+            # Create recording directory if saving audio
+            if getattr(Config, 'SAVE_AUDIO', False):
+                self._recording_dir = Config.SAVE_AUDIO_DIR
+                self._recording_dir.mkdir(parents=True, exist_ok=True)
+                session_name = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                self._recording_dir = self._recording_dir / session_name
+                self._recording_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Saving audio to {self._recording_dir}")
+            else:
+                self._recording_dir = None
             logger.info("Started transcription session")
         except Exception as e:
             logger.error(f"Error starting transcription session: {e}", exc_info=True)
@@ -100,7 +114,24 @@ class TranscriptionService:
         
         self.is_transcribing = False
         self.audio_buffer = b''
+        self._recording_dir = None
         logger.info("Stopped transcription session")
+    
+    def _save_audio_chunk(self, pcm_48k: bytes, user_id: Optional[int] = None) -> None:
+        """Save a PCM chunk to a WAV file (48kHz mono 16-bit)."""
+        if not self._recording_dir:
+            return
+        try:
+            self._chunk_counter += 1
+            user_suffix = f"_user{user_id}" if user_id else ""
+            wav_path = self._recording_dir / f"chunk_{self._chunk_counter:04d}{user_suffix}.wav"
+            with wave.open(str(wav_path), 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)  # 16-bit
+                wf.setframerate(DISCORD_PCM_RATE)
+                wf.writeframes(pcm_48k)
+        except Exception as e:
+            logger.warning(f"Failed to save audio chunk: {e}")
     
     def _resample_48k_to_16k(self, pcm_48k: bytes) -> bytes:
         """Resample PCM16 48kHz mono to 16kHz by decimating (take every 3rd sample)."""
@@ -137,6 +168,10 @@ class TranscriptionService:
         if len(self.audio_buffer) >= chunk_48k_bytes:
             chunk_48k = self.audio_buffer[:chunk_48k_bytes]
             self.audio_buffer = self.audio_buffer[chunk_48k_bytes:]
+            
+            # Save to WAV file if recording is enabled
+            if self._recording_dir:
+                self._save_audio_chunk(chunk_48k, user_id)
             
             # Resample 48kHz -> 16kHz for Whisper
             chunk_16k = self._resample_48k_to_16k(chunk_48k)
