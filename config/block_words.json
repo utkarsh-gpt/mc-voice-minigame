@@ -1,8 +1,8 @@
 {
-  "stone": "minecraft:stone",
+  "stone": ["minecraft:stone","minecraft:deepslate","minecraft:granite","minecraft:diorite","minecraft:andesite"],
   "cobblestone": "minecraft:cobblestone",
-  "dirt": "minecraft:dirt",
-  "grass": "minecraft:grass_block",
+  "dirt": ["minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:grass_block","minecraft:grass_path"],
+  "grass": ["minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:grass_block","minecraft:grass_path"],
   "diamond block": "minecraft:diamond_block",
   "gold block": "minecraft:gold_block",
   "iron block": "minecraft:iron_block",
@@ -12,6 +12,7 @@
   "coal block": "minecraft:coal_block",
   "glass": "minecraft:glass",
   "wood": ["#minecraft:planks","#minecraft:logs"],
+  "would": ["#minecraft:planks","#minecraft:logs"],
   "planks": "#minecraft:planks",
   "bricks": "minecraft:bricks",
   "bedrock": "minecraft:bedrock",
@@ -26,5 +27,6 @@
   "leaf": "#minecraft:leaves",
   "leave": "#minecraft:leaves",
   "water": "minecraft:water",
-  "lava": "minecraft:lava"
+  "lava": "minecraft:lava",
+  "nether brick": "minecraft:nether_bricks"
 }
