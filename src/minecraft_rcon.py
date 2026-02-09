@@ -15,6 +15,13 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
+# Minecraft Java Edition fill command limit (blocks per command)
+FILL_LIMIT_BLOCKS = 32768
+
+# Chunk dimensions and fill limit (each segment = 16*128*16 = 32768 blocks)
+CHUNK_SIZE = 16
+FILL_SEGMENT_HEIGHT = 128
+
 
 class MinecraftRCON:
     """Minecraft RCON client wrapper."""
@@ -168,9 +175,13 @@ class MinecraftRCON:
         Returns:
             True if successful, False otherwise
         """
-        # Clamp radius to max
+        # Clamp radius to config max
         radius = min(radius, Config.MAX_RADIUS)
-        
+        # Clamp so fill volume doesn't exceed Minecraft's fill limit (32,768 blocks)
+        # Volume = (2*radius+1)^2 * (radius+2); max safe radius is 19
+        while (2 * radius + 1) ** 2 * (radius + 2) > FILL_LIMIT_BLOCKS and radius > 0:
+            radius -= 1
+
         # Build the fill command
         # execute as <player> at @s run fill ~-r ~-1 ~-r ~r ~r ~r <block> replace <target>
         command = (
@@ -210,6 +221,102 @@ class MinecraftRCON:
             results[player] = success
         
         return results
+    
+    def replace_blocks_in_chunk_around_player(
+        self,
+        player: str,
+        target_block: str,
+        replacement_block: str = "minecraft:air",
+        world_min_y: int = -64,
+        world_max_y: int = 320,
+    ) -> bool:
+        """
+        Replace a specific block type in a 16x16 chunk around the player, breaking into
+        multiple fill commands to stay under the 32,768 block limit. Works regardless
+        of how many blocks need replacing.
+        
+        Chunk is from player position to +15 in X and Z, full world height. Uses
+        relative X/Z (~ to ~15) and absolute Y so the chunk covers full world height.
+        
+        Args:
+            player: Player name
+            target_block: Block type to replace (e.g., "minecraft:stone", "minecraft:dirt")
+            replacement_block: Block to replace with (default: "minecraft:air" for deletion)
+            world_min_y: World bottom Y (e.g. -64 for 1.18+, 0 for older)
+            world_max_y: World top Y (e.g. 320 for 1.18+, 255 for older)
+            
+        Returns:
+            True if all fill commands succeeded, False otherwise
+        """
+        height_span = world_max_y - world_min_y + 1
+        num_segments = (height_span + FILL_SEGMENT_HEIGHT - 1) // FILL_SEGMENT_HEIGHT
+        
+        for i in range(num_segments):
+            y_start = world_min_y + i * FILL_SEGMENT_HEIGHT
+            y_end = min(world_min_y + (i + 1) * FILL_SEGMENT_HEIGHT - 1, world_max_y)
+            # execute as <player> at @s run fill ~ y_start ~ ~15 y_end ~15 <replacement> replace <target>
+            # (~ and ~15 are relative to player; Y is absolute world coords)
+            command = (
+                f"execute as {player} at @s run fill "
+                f"~ {y_start} ~ ~{CHUNK_SIZE - 1} {y_end} ~{CHUNK_SIZE - 1} "
+                f"{replacement_block} replace {target_block}"
+            )
+            response = self.execute_command(command, bypass_cooldown=True)
+            if not response:
+                logger.error(
+                    f"Failed to replace {target_block} in chunk segment {i + 1}/{num_segments} "
+                    f"around {player} (Y {y_start}-{y_end})"
+                )
+                return False
+        
+        logger.info(
+            f"Replaced {target_block} with {replacement_block} in 16x16 chunk "
+            f"(Y {world_min_y} to {world_max_y}) around {player}"
+        )
+        return True
+    
+    def clear_chunk_around_player(
+        self,
+        player: str,
+        world_min_y: int = -64,
+        world_max_y: int = 320,
+    ) -> bool:
+        """
+        Clear a 16x16 chunk around the player by filling with air in multiple commands.
+        Convenience wrapper around replace_blocks_in_chunk_around_player.
+        """
+        return self.replace_blocks_in_chunk_around_player(
+            player, "minecraft:air", "minecraft:air", world_min_y, world_max_y
+        )
+    
+    def replace_blocks_in_chunk_around_all_players(
+        self,
+        target_block: str,
+        replacement_block: str = "minecraft:air",
+        world_min_y: int = -64,
+        world_max_y: int = 320,
+    ) -> Dict[str, bool]:
+        """
+        Replace a specific block type in a 16x16 chunk around all online players.
+        Returns dict of player -> success.
+        """
+        players = self.get_online_players()
+        return {
+            player: self.replace_blocks_in_chunk_around_player(
+                player, target_block, replacement_block, world_min_y, world_max_y
+            )
+            for player in players
+        }
+    
+    def clear_chunk_around_all_players(
+        self,
+        world_min_y: int = -64,
+        world_max_y: int = 320,
+    ) -> Dict[str, bool]:
+        """Clear a 16x16 chunk around all online players. Returns dict of player -> success."""
+        return self.replace_blocks_in_chunk_around_all_players(
+            "minecraft:air", "minecraft:air", world_min_y, world_max_y
+        )
     
     def test_connection(self) -> bool:
         """Test the RCON connection."""
