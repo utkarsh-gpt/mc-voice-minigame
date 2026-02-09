@@ -15,8 +15,9 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 
-# Discord voice sends PCM at 48kHz; Whisper expects 16kHz
+# Discord voice sends PCM at 48kHz STEREO (2 channels); Whisper expects 16kHz mono
 DISCORD_PCM_RATE = 48000
+DISCORD_CHANNELS = 2  # Discord sends stereo
 WHISPER_SAMPLE_RATE = 16000
 # Resample ratio: 48k -> 16k = 1/3 (take every 3rd sample)
 RESAMPLE_RATIO = DISCORD_PCM_RATE // WHISPER_SAMPLE_RATE  # 3
@@ -117,6 +118,17 @@ class TranscriptionService:
         self._recording_dir = None
         logger.info("Stopped transcription session")
     
+    def _stereo_to_mono(self, pcm_stereo: bytes) -> bytes:
+        """Convert interleaved stereo PCM16 to mono (average L+R). Discord sends 48kHz stereo."""
+        if len(pcm_stereo) < 4:
+            return b''
+        arr = np.frombuffer(pcm_stereo, dtype=np.int16)
+        if len(arr) % 2 != 0:
+            arr = arr[:-1]
+        frames = arr.reshape(-1, 2)
+        mono = ((frames[:, 0].astype(np.int32) + frames[:, 1].astype(np.int32)) // 2).astype(np.int16)
+        return mono.tobytes()
+    
     def _save_audio_chunk(self, pcm_48k: bytes, user_id: Optional[int] = None) -> None:
         """Save a PCM chunk to a WAV file (48kHz mono 16-bit)."""
         if not self._recording_dir:
@@ -147,7 +159,7 @@ class TranscriptionService:
         Process an audio chunk and get transcription.
         
         Args:
-            audio_data: Raw audio bytes (PCM16 mono 48kHz from Discord)
+            audio_data: Raw audio bytes (PCM16 48kHz stereo from Discord)
             user_id: Discord user ID
             ssrc: SSRC identifier
         """
@@ -158,16 +170,22 @@ class TranscriptionService:
         if ssrc and user_id:
             self.user_id_map[ssrc] = user_id
         
-        # Buffer audio data (Discord sends 48kHz PCM)
+        # Buffer audio data (Discord sends 48kHz stereo PCM)
         self.audio_buffer += audio_data
         
         # Process in chunks (longer = more context for accuracy, but more latency)
+        # Discord sends 48kHz stereo, so bytes = rate * channels * secs * 2 (16-bit)
         chunk_secs = getattr(Config, 'WHISPER_CHUNK_SECONDS', 3)
-        chunk_48k_bytes = DISCORD_PCM_RATE * chunk_secs * 2  # PCM16
+        chunk_48k_bytes = DISCORD_PCM_RATE * DISCORD_CHANNELS * chunk_secs * 2
         
         if len(self.audio_buffer) >= chunk_48k_bytes:
-            chunk_48k = self.audio_buffer[:chunk_48k_bytes]
+            chunk_stereo = self.audio_buffer[:chunk_48k_bytes]
             self.audio_buffer = self.audio_buffer[chunk_48k_bytes:]
+            
+            # Convert stereo to mono (Discord sends 48kHz stereo; we need mono)
+            chunk_48k = self._stereo_to_mono(chunk_stereo)
+            if len(chunk_48k) == 0:
+                return
             
             # Save to WAV file if recording is enabled
             if self._recording_dir:
