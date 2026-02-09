@@ -1,0 +1,6 @@
+{
+  "default_radius": 3,
+  "max_radius": 10,
+  "target_block": "minecraft:air",
+  "cooldown_seconds": 5
+}
