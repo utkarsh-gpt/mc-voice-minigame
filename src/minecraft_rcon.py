@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 # Minecraft Java Edition fill command limit (blocks per command)
 FILL_LIMIT_BLOCKS = 32768
 
-# Chunk dimensions and fill limit (each segment = 16*128*16 = 32768 blocks)
-CHUNK_SIZE = 16
-FILL_SEGMENT_HEIGHT = 128
+# Chunk dimensions and fill limit
+# Centered chunk: -8 to +8 in X and Z (17x17); segment height chosen so 17*17*height <= 32768
+CHUNK_RADIUS = 8  # chunk extends ~-8 to ~8 around player (17x17 horizontal)
+FILL_SEGMENT_HEIGHT = 128  # for 16x16; for 17x17 we use 32768 // (17*17) = 113
 
 
 class MinecraftRCON:
@@ -231,12 +232,11 @@ class MinecraftRCON:
         world_max_y: int = 320,
     ) -> bool:
         """
-        Replace a specific block type in a 16x16 chunk around the player, breaking into
-        multiple fill commands to stay under the 32,768 block limit. Works regardless
-        of how many blocks need replacing.
+        Replace a specific block type in a chunk centered on the player (~-8 to ~8 in X and Z),
+        breaking into multiple fill commands to stay under the 32,768 block limit.
         
-        Chunk is from player position to +15 in X and Z, full world height. Uses
-        relative X/Z (~ to ~15) and absolute Y so the chunk covers full world height.
+        Chunk is from ~-8 to ~8 in X and Z (all directions around player), full world height.
+        Uses relative X/Z and absolute Y.
         
         Args:
             player: Player name
@@ -248,17 +248,19 @@ class MinecraftRCON:
         Returns:
             True if all fill commands succeeded, False otherwise
         """
+        # 17x17 horizontal (from -8 to +8); segment height so 17*17*height <= 32768
+        h_blocks = CHUNK_RADIUS * 2 + 1
+        segment_height = FILL_LIMIT_BLOCKS // (h_blocks * h_blocks)
         height_span = world_max_y - world_min_y + 1
-        num_segments = (height_span + FILL_SEGMENT_HEIGHT - 1) // FILL_SEGMENT_HEIGHT
+        num_segments = (height_span + segment_height - 1) // segment_height
         
         for i in range(num_segments):
-            y_start = world_min_y + i * FILL_SEGMENT_HEIGHT
-            y_end = min(world_min_y + (i + 1) * FILL_SEGMENT_HEIGHT - 1, world_max_y)
-            # execute as <player> at @s run fill ~ y_start ~ ~15 y_end ~15 <replacement> replace <target>
-            # (~ and ~15 are relative to player; Y is absolute world coords)
+            y_start = world_min_y + i * segment_height
+            y_end = min(world_min_y + (i + 1) * segment_height - 1, world_max_y)
+            # execute as <player> at @s run fill ~-8 y_start ~-8 ~8 y_end ~8 <replacement> replace <target>
             command = (
                 f"execute as {player} at @s run fill "
-                f"~ {y_start} ~ ~{CHUNK_SIZE - 1} {y_end} ~{CHUNK_SIZE - 1} "
+                f"~-{CHUNK_RADIUS} {y_start} ~-{CHUNK_RADIUS} ~{CHUNK_RADIUS} {y_end} ~{CHUNK_RADIUS} "
                 f"{replacement_block} replace {target_block}"
             )
             response = self.execute_command(command, bypass_cooldown=True)
@@ -270,7 +272,7 @@ class MinecraftRCON:
                 return False
         
         logger.info(
-            f"Replaced {target_block} with {replacement_block} in 16x16 chunk "
+            f"Replaced {target_block} with {replacement_block} in chunk (~±{CHUNK_RADIUS}) "
             f"(Y {world_min_y} to {world_max_y}) around {player}"
         )
         return True
