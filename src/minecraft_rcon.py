@@ -163,68 +163,6 @@ class MinecraftRCON:
         
         return []
     
-    def replace_blocks_around_player(self, player: str, block_id: str, radius: int, target_block: str = "minecraft:air") -> bool:
-        """
-        Replace blocks around a player.
-        
-        Args:
-            player: Player name
-            block_id: Block ID to place (e.g., "minecraft:stone")
-            radius: Radius around player
-            target_block: Block to replace (default: air)
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        # Clamp radius to config max
-        radius = min(radius, Config.MAX_RADIUS)
-        # Clamp so fill volume doesn't exceed Minecraft's fill limit (32,768 blocks)
-        # Volume = (2*radius+1)^2 * (radius+2); max safe radius is 19
-        while (2 * radius + 1) ** 2 * (radius + 2) > FILL_LIMIT_BLOCKS and radius > 0:
-            radius -= 1
-
-        # Build the fill command
-        # execute as <player> at @s run fill ~-r ~-1 ~-r ~r ~r ~r <block> replace <target>
-        command = (
-            f"execute as {player} at @s run fill "
-            f"~-{radius} ~-1 ~-{radius} "
-            f"~{radius} ~{radius} ~{radius} "
-            f"{block_id} replace {target_block}"
-        )
-        
-        # Bypass cooldown for internal operations (called from replace_blocks_around_all_players)
-        response = self.execute_command(command, bypass_cooldown=True)
-        
-        # Some servers/RCON libs may return an empty string on success.
-        # Treat only None (exception/connection failure) as a failed execution.
-        if response is not None:
-            logger.info(f"Replaced blocks around {player} with {block_id} (radius: {radius})")
-            return True
-        else:
-            logger.error(f"Failed to replace blocks around {player}")
-            return False
-    
-    def replace_blocks_around_all_players(self, block_id: str, radius: int, target_block: str = "minecraft:air") -> Dict[str, bool]:
-        """
-        Replace blocks around all online players.
-        
-        Args:
-            block_id: Block ID to place
-            radius: Radius around each player
-            target_block: Block to replace
-            
-        Returns:
-            Dictionary mapping player names to success status
-        """
-        players = self.get_online_players()
-        results = {}
-        
-        for player in players:
-            success = self.replace_blocks_around_player(player, block_id, radius, target_block)
-            results[player] = success
-        
-        return results
-    
     def replace_blocks_in_chunk_around_player(
         self,
         player: str,
@@ -281,20 +219,6 @@ class MinecraftRCON:
         )
         return True
     
-    def clear_chunk_around_player(
-        self,
-        player: str,
-        world_min_y: int = -64,
-        world_max_y: int = 320,
-    ) -> bool:
-        """
-        Clear a 16x16 chunk around the player by filling with air in multiple commands.
-        Convenience wrapper around replace_blocks_in_chunk_around_player.
-        """
-        return self.replace_blocks_in_chunk_around_player(
-            player, "minecraft:air", "minecraft:air", world_min_y, world_max_y
-        )
-    
     def replace_blocks_in_chunk_around_all_players(
         self,
         target_block: str,
@@ -313,16 +237,6 @@ class MinecraftRCON:
             )
             for player in players
         }
-    
-    def clear_chunk_around_all_players(
-        self,
-        world_min_y: int = -64,
-        world_max_y: int = 320,
-    ) -> Dict[str, bool]:
-        """Clear a 16x16 chunk around all online players. Returns dict of player -> success."""
-        return self.replace_blocks_in_chunk_around_all_players(
-            "minecraft:air", "minecraft:air", world_min_y, world_max_y
-        )
     
     def test_connection(self) -> bool:
         """Test the RCON connection."""

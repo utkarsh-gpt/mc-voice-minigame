@@ -234,77 +234,48 @@ class TestMinecraftRCON:
         assert players == []
     
     @patch('src.minecraft_rcon.MCRcon')
-    def test_replace_blocks_around_player(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
-        """Test replacing blocks around a player."""
+    def test_replace_blocks_in_chunk_around_player(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
+        """Test replacing a block type in chunk around a player."""
         mock_mcrcon_class.return_value = mock_mcrcon
-        mock_mcrcon.command.return_value = "Successfully filled 100 blocks"
+        mock_mcrcon.command.return_value = ""
         rcon_client.connect()
         
-        result = rcon_client.replace_blocks_around_player(
+        result = rcon_client.replace_blocks_in_chunk_around_player(
             player="TestPlayer",
-            block_id="minecraft:stone",
-            radius=3
+            target_block="minecraft:grass_block",
+            replacement_block="minecraft:air",
+            world_min_y=-64,
+            world_max_y=320,
         )
         
         assert result is True
-        mock_mcrcon.command.assert_called_once()
-        call_args = mock_mcrcon.command.call_args[0][0]
-        assert "execute as TestPlayer" in call_args
-        assert "minecraft:stone" in call_args
-        assert "replace minecraft:air" in call_args
+        call_args_list = [c[0][0] for c in mock_mcrcon.command.call_args_list]
+        assert any("execute as TestPlayer" in c for c in call_args_list)
+        assert any("minecraft:grass_block" in c and "minecraft:air" in c and "replace" in c for c in call_args_list)
     
     @patch('src.minecraft_rcon.MCRcon')
-    def test_replace_blocks_around_player_radius_clamped(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
-        """Test that radius is clamped to MAX_RADIUS."""
-        from src.config import Config
+    def test_replace_blocks_in_chunk_around_all_players(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
+        """Test replacing a block in chunk around all players."""
         mock_mcrcon_class.return_value = mock_mcrcon
-        mock_mcrcon.command.return_value = "Success"
-        rcon_client.connect()
-        
-        # Try with radius larger than MAX_RADIUS
-        rcon_client.replace_blocks_around_player(
-            player="TestPlayer",
-            block_id="minecraft:stone",
-            radius=999  # Much larger than MAX_RADIUS
-        )
-        
-        call_args = mock_mcrcon.command.call_args[0][0]
-        # Should contain clamped radius
-        assert f"~-{Config.MAX_RADIUS}" in call_args
-    
-    @patch('src.minecraft_rcon.MCRcon')
-    def test_replace_blocks_around_all_players(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
-        """Test replacing blocks around all players."""
-        mock_mcrcon_class.return_value = mock_mcrcon
-        # First call returns player list, subsequent calls return success
         mock_mcrcon.command.side_effect = [
-            "There are 2 of a max of 20 players online: Player1, Player2",
-            "Successfully filled 50 blocks",
-            "Successfully filled 50 blocks"
+            "There are 2 of a max of 20 players online: P1, P2",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
         ]
         rcon_client.connect()
         
-        results = rcon_client.replace_blocks_around_all_players(
-            block_id="minecraft:stone",
-            radius=3
+        results = rcon_client.replace_blocks_in_chunk_around_all_players(
+            target_block="minecraft:grass_block",
+            replacement_block="minecraft:air",
         )
         
-        assert results == {"Player1": True, "Player2": True}
-        assert mock_mcrcon.command.call_count == 3  # list + 2 replacements
-    
-    @patch('src.minecraft_rcon.MCRcon')
-    def test_replace_blocks_around_all_players_no_players(self, mock_mcrcon_class, rcon_client, mock_mcrcon):
-        """Test replacing blocks when no players are online."""
-        mock_mcrcon_class.return_value = mock_mcrcon
-        mock_mcrcon.command.return_value = "There are 0 of a max of 20 players online:"
-        rcon_client.connect()
-        
-        results = rcon_client.replace_blocks_around_all_players(
-            block_id="minecraft:stone",
-            radius=3
-        )
-        
-        assert results == {}
+        assert results == {"P1": True, "P2": True}
     
     @patch('src.minecraft_rcon.MCRcon')
     def test_test_connection(self, mock_mcrcon_class, rcon_client, mock_mcrcon):

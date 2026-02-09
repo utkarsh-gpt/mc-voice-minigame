@@ -123,6 +123,11 @@ class MinecraftBot(commands.Bot):
             block_info = self.block_detector.detect_block(text, user_id)
             
             if block_info:
+                # Only act on "clear chunk" + block: replace that block with air in 16x16 chunk
+                normalized = self.block_detector.normalize_text(text)
+                if "clear chunk" not in normalized:
+                    return
+                
                 logger.info(f"Block detected: {block_info['block_id']} by user {user_id}")
                 
                 # Resolve block_id (may be list for e.g. "ore")
@@ -133,49 +138,27 @@ class MinecraftBot(commands.Bot):
                     logger.error(f"Invalid block_id format: {block_id}")
                     return
                 
-                # Check for "clear chunk" -> replace that block with air in 16x16 chunk
-                normalized = self.block_detector.normalize_text(text)
-                clear_chunk = "clear chunk" in normalized
-                
-                # Ensure RCON is connected
                 if not self.rcon_client.connected:
                     logger.warning("RCON not connected, attempting to reconnect...")
                     if not self.rcon_client.connect():
                         logger.warning(
-                            f"RCON connection failed. Block '{block_id}' detected but cannot execute. "
-                            "Check Minecraft server connection and RCON settings."
+                            f"RCON connection failed. Block '{block_id}' detected but cannot execute."
                         )
                         return
                 
                 try:
-                    if clear_chunk:
-                        # Replace target block with air in 16x16 chunk around each player
-                        results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
-                            target_block=block_id,
-                            replacement_block="minecraft:air",
-                        )
-                    else:
-                        # Validate radius and replace blocks around all players (place block)
-                        radius = block_info['radius']
-                        if not isinstance(radius, int) or radius < 1 or radius > Config.MAX_RADIUS:
-                            logger.error(f"Invalid radius: {radius}")
-                            radius = Config.DEFAULT_RADIUS
-                        results = self.rcon_client.replace_blocks_around_all_players(
-                            block_id=block_id,
-                            radius=radius
-                        )
-                    
+                    results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
+                        target_block=block_id,
+                        replacement_block="minecraft:air",
+                    )
                     successful_players = [p for p, success in results.items() if success]
                     failed_players = [p for p, success in results.items() if not success]
-                    
                     if successful_players:
-                        logger.info(f"Successfully replaced blocks for players: {', '.join(successful_players)}")
+                        logger.info(f"Cleared {block_id} in chunk for: {', '.join(successful_players)}")
                     if failed_players:
-                        logger.warning(f"Failed to replace blocks for players: {', '.join(failed_players)}")
-                        
+                        logger.warning(f"Failed for: {', '.join(failed_players)}")
                 except Exception as e:
-                    logger.error(f"Error replacing blocks: {e}", exc_info=True)
-                    # Try to reconnect on error
+                    logger.error(f"Error clearing chunk: {e}", exc_info=True)
                     self.rcon_client.connected = False
                     if self.rcon_client.connect():
                         logger.info("Reconnected to RCON after error")
@@ -476,9 +459,7 @@ async def status(interaction: discord.Interaction):
             f"Transcribing: {'✅' if transcribing else '❌'}\n"
             f"RCON Connected: {'✅' if rcon_connected else '❌'}\n"
             f"Online Players: {len(online_players)}\n"
-            f"Tracked Block Words: {len(block_words)}\n"
-            f"Default Radius: {Config.DEFAULT_RADIUS}\n"
-            f"Max Radius: {Config.MAX_RADIUS}\n"
+            f"Block Words: {len(block_words)}\n"
             f"Cooldown: {Config.COOLDOWN_SECONDS}s"
         )
         
@@ -490,49 +471,6 @@ async def status(interaction: discord.Interaction):
         logger.error(f'Error getting status: {e}', exc_info=True)
         await interaction.response.send_message(
             'Failed to get status. Check logs for details.',
-            ephemeral=True
-        )
-
-
-@bot.tree.command(name='set_radius', description='Set the default replacement radius')
-@app_commands.describe(radius='Radius in blocks (1-10)')
-async def set_radius(interaction: discord.Interaction, radius: int):
-    """Set the default replacement radius."""
-    # Check permissions (admin or manage server)
-    if not (interaction.user.guild_permissions.administrator or 
-            interaction.user.guild_permissions.manage_guild):
-        await interaction.response.send_message(
-            'You need Administrator or Manage Server permissions to use this command.',
-            ephemeral=True
-        )
-        return
-    
-    # Validate radius type and range
-    if not isinstance(radius, int):
-        await interaction.response.send_message(
-            'Radius must be an integer.',
-            ephemeral=True
-        )
-        return
-    
-    if radius < 1 or radius > Config.MAX_RADIUS:
-        await interaction.response.send_message(
-            f'Radius must be between 1 and {Config.MAX_RADIUS}.',
-            ephemeral=True
-        )
-        return
-    
-    try:
-        Config.DEFAULT_RADIUS = radius
-        await interaction.response.send_message(
-            f'Default radius set to {radius} blocks.',
-            ephemeral=True
-        )
-        logger.info(f'Default radius set to {radius} by {interaction.user} ({interaction.user.id})')
-    except Exception as e:
-        logger.error(f'Error setting radius: {e}', exc_info=True)
-        await interaction.response.send_message(
-            'Failed to set radius. Check logs for details.',
             ephemeral=True
         )
 
@@ -690,7 +628,7 @@ async def toggle_voice_triggers(interaction: discord.Interaction, enabled: bool)
                 return
             
             await interaction.response.send_message(
-                'Voice triggers are enabled. Speak block names to trigger replacements.',
+                'Voice triggers enabled. Say e.g. "grass clear chunk" to clear that block in a chunk.',
                 ephemeral=True
             )
         else:
