@@ -131,38 +131,48 @@ class MinecraftBot(commands.Bot):
                 # Act on any block word from block_words.json - no extra phrase required
                 logger.info(f"Block detected: {block_info['block_id']} by user {user_id}")
                 
-                # Resolve block_id (may be list for e.g. "ore")
-                block_id = block_info['block_id']
-                if isinstance(block_id, list):
-                    block_id = block_id[0] if block_id else None
-                if not isinstance(block_id, str) or not block_id.startswith('minecraft:'):
-                    logger.error(f"Invalid block_id format: {block_id}")
+                # Resolve block_id - may be single (minecraft:stone) or list (ore array)
+                raw_block_id = block_info['block_id']
+                block_ids = [raw_block_id] if isinstance(raw_block_id, str) else list(raw_block_id)
+                if not block_ids:
+                    return
+                
+                # Validate: block IDs or tags
+                def is_valid_block_id(bid):
+                    return isinstance(bid, str) and (
+                        bid.startswith('minecraft:') or bid.startswith('#minecraft:')
+                    )
+                if not all(is_valid_block_id(bid) for bid in block_ids):
+                    logger.error(f"Invalid block_id format: {block_ids}")
                     return
                 
                 if not self.rcon_client.connected:
                     logger.warning("RCON not connected, attempting to reconnect...")
                     if not self.rcon_client.connect():
                         logger.warning(
-                            f"RCON connection failed. Block '{block_id}' detected but cannot execute."
+                            f"RCON connection failed. Block detected but cannot execute."
                         )
                         return
                 
                 try:
-                    results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
-                        target_block=block_id,
-                        replacement_block="minecraft:air",
-                    )
-                    successful_players = [p for p, success in results.items() if success]
-                    failed_players = [p for p, success in results.items() if not success]
-                    if successful_players:
-                        logger.info(f"Cleared {block_id} in chunk for: {', '.join(successful_players)}")
-                        # Broadcast to server: "User [name] cleared [block] in chunk"
+                    any_success = False
+                    for block_id in block_ids:
+                        results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
+                            target_block=block_id,
+                            replacement_block="minecraft:air",
+                        )
+                        successful_players = [p for p, success in results.items() if success]
+                        failed_players = [p for p, success in results.items() if not success]
+                        if successful_players:
+                            any_success = True
+                            logger.info(f"Cleared {block_id} in chunk for: {', '.join(successful_players)}")
+                        if failed_players:
+                            logger.warning(f"Failed {block_id} for: {', '.join(failed_players)}")
+                    if any_success:
                         user = self.get_user(user_id)
                         user_name = user.display_name if user else f"User {user_id}"
-                        block_name = block_info.get("matched_word", block_id.replace("minecraft:", "").replace("_", " "))
+                        block_name = block_info.get("matched_word", block_ids[0].replace("minecraft:", "").replace("#minecraft:", "").replace("_", " "))
                         self.rcon_client.say(f"User {user_name} cleared {block_name} in chunk")
-                    if failed_players:
-                        logger.warning(f"Failed for: {', '.join(failed_players)}")
                 except Exception as e:
                     logger.error(f"Error clearing chunk: {e}", exc_info=True)
                     self.rcon_client.connected = False
