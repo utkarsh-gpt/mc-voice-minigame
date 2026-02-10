@@ -67,15 +67,21 @@ class MinecraftBot(commands.Bot):
         """Called when the bot is starting up."""
         logger.info("Setting up bot...")
         
-        # Sync commands to guild
+        # Sync commands globally (available in all servers)
+        # This ensures commands appear in all servers the bot is invited to
+        await self.tree.sync()
+        logger.info("Synced commands globally")
+        
+        # Optionally also sync to a specific guild for faster updates during development
+        # Guild-specific syncs are instant, while global syncs can take up to 1 hour
         if self.config.DISCORD_GUILD_ID:
-            guild = discord.Object(id=self.config.DISCORD_GUILD_ID)
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-            logger.info(f"Synced commands to guild {self.config.DISCORD_GUILD_ID}")
-        else:
-            await self.tree.sync()
-            logger.info("Synced commands globally")
+            try:
+                guild = discord.Object(id=self.config.DISCORD_GUILD_ID)
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
+                logger.info(f"Also synced commands to guild {self.config.DISCORD_GUILD_ID} for instant updates")
+            except Exception as e:
+                logger.warning(f"Failed to sync to specific guild {self.config.DISCORD_GUILD_ID}: {e}")
     
     async def on_ready(self):
         """Called when the bot is ready."""
