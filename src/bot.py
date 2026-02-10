@@ -161,7 +161,13 @@ class MinecraftBot(commands.Bot):
                         return
                 
                 block_name = block_info.get("matched_word", block_ids[0].replace("minecraft:", "").replace("#minecraft:", "").replace("_", " "))
+                # Try to get user from cache first, then fetch if not cached
                 user = self.get_user(user_id)
+                if not user and user_id:
+                    try:
+                        user = await self.fetch_user(user_id)
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch user {user_id}: {e}")
                 user_name = user.display_name if user else f"User {user_id}"
                 
                 # Immediate feedback so users see a response right away
@@ -187,7 +193,7 @@ class MinecraftBot(commands.Bot):
                 try:
                     any_success = await asyncio.to_thread(_do_clear)
                     if any_success:
-                        self.rcon_client.say(f"User {user_name} cleared {block_name} in chunk")
+                        self.rcon_client.say(f"{user_name} said {block_name}")
                 except Exception as e:
                     logger.error(f"Error clearing chunk: {e}", exc_info=True)
                     self.rcon_client.connected = False

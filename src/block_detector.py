@@ -78,9 +78,9 @@ class BlockDetector:
         """
         Detect a block name in the transcribed text.
         
-        Uses fuzzy (substring) matching: a keyword matches if it appears anywhere
-        in the normalized text, including inside other words. E.g. "end" matches
-        in "friend" and will trigger minecraft:end_stone.
+        Uses whole-word matching: a keyword matches only if it appears as a complete
+        word (not as a substring of another word). This prevents false positives from
+        background noise (e.g., "stone" won't match in "microphone").
         
         Args:
             text: Transcribed text
@@ -97,8 +97,10 @@ class BlockDetector:
         for word, block_id in sorted_words:
             normalized_word = self.normalize_text(word)
             
-            # Fuzzy match: keyword can appear as substring (e.g. "end" in "friend")
-            if normalized_word in normalized:
+            # Match whole words only (word boundaries) to avoid false positives from noise
+            # Use word boundaries to match "stone" but not "microphone" or "microphone"
+            pattern = r'\b' + re.escape(normalized_word) + r'\b'
+            if re.search(pattern, normalized):
                 # Try to extract radius if specified
                 radius = self._extract_radius(normalized)
                 

@@ -1,5 +1,5 @@
 {
-  "stone": ["minecraft:stone","minecraft:deepslate","minecraft:granite","minecraft:diorite","minecraft:andesite"],
+  "stone": ["minecraft:stone","minecraft:deepslate","minecraft:granite","minecraft:diorite","minecraft:andesite","minecraft:sandstone","minecraft:red_sandstone"],
   "cobblestone": "minecraft:cobblestone",
   "dirt": ["minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:grass_block","minecraft:grass_path"],
   "grass": ["minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol","minecraft:grass_block","minecraft:grass_path"],
