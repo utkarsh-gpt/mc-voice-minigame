@@ -36,6 +36,10 @@ class Config:
     DEFAULT_RADIUS: int = int(os.getenv('DEFAULT_RADIUS', '3') or '3')
     MAX_RADIUS: int = int(os.getenv('MAX_RADIUS', '10') or '10')
     COOLDOWN_SECONDS: int = int(os.getenv('COOLDOWN_SECONDS', '5') or '5')
+    # Fill Y range: smaller = fewer RCON commands = faster. Full world: -64 to 320 (4 segments).
+    # Surface-only (0-128) uses 2 segments. Adjust if players stay in a known height range.
+    FILL_WORLD_MIN_Y: int = int(os.getenv('FILL_WORLD_MIN_Y', '-64') or '-64')
+    FILL_WORLD_MAX_Y: int = int(os.getenv('FILL_WORLD_MAX_Y', '320') or '320')
     
     # Paths
     BASE_DIR: Path = Path(__file__).parent.parent

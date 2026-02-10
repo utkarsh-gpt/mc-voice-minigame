@@ -223,13 +223,18 @@ class MinecraftRCON:
         self,
         target_block: str,
         replacement_block: str = "minecraft:air",
-        world_min_y: int = -64,
-        world_max_y: int = 320,
+        world_min_y: Optional[int] = None,
+        world_max_y: Optional[int] = None,
     ) -> Dict[str, bool]:
         """
         Replace a specific block type in a 16x16 chunk around all online players.
         Returns dict of player -> success.
+        Uses Config.FILL_WORLD_MIN_Y/MAX_Y if world_min_y/world_max_y not specified.
         """
+        if world_min_y is None:
+            world_min_y = Config.FILL_WORLD_MIN_Y
+        if world_max_y is None:
+            world_max_y = Config.FILL_WORLD_MAX_Y
         players = self.get_online_players()
         return {
             player: self.replace_blocks_in_chunk_around_player(

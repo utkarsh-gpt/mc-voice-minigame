@@ -154,7 +154,15 @@ class MinecraftBot(commands.Bot):
                         )
                         return
                 
-                try:
+                block_name = block_info.get("matched_word", block_ids[0].replace("minecraft:", "").replace("#minecraft:", "").replace("_", " "))
+                user = self.get_user(user_id)
+                user_name = user.display_name if user else f"User {user_id}"
+                
+                # Immediate feedback so users see a response right away
+                self.rcon_client.say(f"Clearing {block_name}...")
+                
+                # Run blocking RCON commands in thread pool to avoid blocking the Discord event loop
+                def _do_clear():
                     any_success = False
                     for block_id in block_ids:
                         results = self.rcon_client.replace_blocks_in_chunk_around_all_players(
@@ -168,10 +176,11 @@ class MinecraftBot(commands.Bot):
                             logger.info(f"Cleared {block_id} in chunk for: {', '.join(successful_players)}")
                         if failed_players:
                             logger.warning(f"Failed {block_id} for: {', '.join(failed_players)}")
+                    return any_success
+                
+                try:
+                    any_success = await asyncio.to_thread(_do_clear)
                     if any_success:
-                        user = self.get_user(user_id)
-                        user_name = user.display_name if user else f"User {user_id}"
-                        block_name = block_info.get("matched_word", block_ids[0].replace("minecraft:", "").replace("#minecraft:", "").replace("_", " "))
                         self.rcon_client.say(f"User {user_name} cleared {block_name} in chunk")
                 except Exception as e:
                     logger.error(f"Error clearing chunk: {e}", exc_info=True)
