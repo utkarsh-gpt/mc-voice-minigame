@@ -78,9 +78,10 @@ class BlockDetector:
         """
         Detect a block name in the transcribed text.
         
-        Uses whole-word matching: a keyword matches only if it appears as a complete
-        word (not as a substring of another word). This prevents false positives from
-        background noise (e.g., "stone" won't match in "microphone").
+        Uses whole-word matching so a key matches only when it appears as a complete
+        word. This avoids false positives from background noise (e.g. "sandstone"
+        won't trigger "sand" or "stone" when the transcriber mishears noise).
+        Longer phrases are tried first so "diamond block" wins over "diamond".
         
         Args:
             text: Transcribed text
@@ -97,8 +98,8 @@ class BlockDetector:
         for word, block_id in sorted_words:
             normalized_word = self.normalize_text(word)
             
-            # Match whole words only (word boundaries) to avoid false positives from noise
-            # Use word boundaries to match "stone" but not "microphone" or "microphone"
+            # Whole-word match only: key must appear as a full word (not inside another word)
+            # so "sandstone" from noise doesn't trigger "sand" or "stone"
             pattern = r'\b' + re.escape(normalized_word) + r'\b'
             if re.search(pattern, normalized):
                 # Try to extract radius if specified
