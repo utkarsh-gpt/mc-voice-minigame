@@ -16,26 +16,27 @@ from .transcription import get_transcription_service
 from .block_detector import get_block_detector
 from .minecraft_rcon import get_rcon_client
 
-# Set up logging (DEBUG level, all output to bot.log for debugging)
+# Set up logging: console = what the bot hears + connection details (INFO);
+# file = full debug for troubleshooting (DEBUG).
 log_file = Config.BASE_DIR / 'bot.log'
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file, encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+file_handler = logging.FileHandler(log_file, encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter(log_format))
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(logging.Formatter(log_format))
+logging.basicConfig(level=logging.DEBUG, handlers=[file_handler, console_handler])
 logger = logging.getLogger(__name__)
 
-# Log everything (including voice/whisper libs) for debugging
-logging.getLogger('discord').setLevel(logging.DEBUG)
-logging.getLogger('discord.ext.voice_recv').setLevel(logging.DEBUG)
-logging.getLogger('discord.ext.voice_recv.reader').setLevel(logging.DEBUG)
-logging.getLogger('discord.ext.voice_recv.opus').setLevel(logging.DEBUG)
-logging.getLogger('discord.ext.voice_recv.router').setLevel(logging.DEBUG)
-logging.getLogger('faster_whisper').setLevel(logging.DEBUG)
-logging.getLogger('httpx').setLevel(logging.DEBUG)
+# Suppress noisy third-party debug logs (console and file); keep only warnings/errors
+logging.getLogger('discord').setLevel(logging.WARNING)
+logging.getLogger('discord.ext.voice_recv').setLevel(logging.WARNING)
+logging.getLogger('discord.ext.voice_recv.reader').setLevel(logging.WARNING)
+logging.getLogger('discord.ext.voice_recv.opus').setLevel(logging.WARNING)
+logging.getLogger('discord.ext.voice_recv.router').setLevel(logging.WARNING)
+logging.getLogger('faster_whisper').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
 class MinecraftBot(commands.Bot):
